@@ -8,8 +8,11 @@
     "shared"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
     "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace=server"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }
