@@ -11,7 +11,7 @@ The backend is a stateful Node.js + Socket.IO server.
 3. **Root Directory**: *(Leave blank)*
 4. **Build Command**: 
    ```bash
-   npm install && npm run build:server
+   npm install --include=dev && npm run build:server
    ```
 5. **Start Command**: 
    ```bash
@@ -33,14 +33,14 @@ The frontend is a static React application built with Vite.
 3. **Root Directory**: *(Leave blank)*
 4. **Build Command**: 
    ```bash
-   npm install && npm run build:client
+   npm install --include=dev && npm run build:client
    ```
 5. **Publish Directory**: 
    ```bash
    client/dist
    ```
 6. **Environment Variables**:
-   - `VITE_SERVER_URL`: `https://<your-backend-name>.onrender.com` (your deployed backend URL)
+   - `VITE_SERVER_URL`: `https://games-online-79bz.onrender.com` (your deployed backend URL)
 7. **SPA Redirect / Rewrite**:
    - In Static Site settings -> **Redirects/Rewrites**, add:
      - **Type**: `Rewrite`
