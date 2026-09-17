@@ -8,11 +8,13 @@ import { TicTacToe } from './games/TicTacToe';
 import { RockPaperScissors } from './games/RockPaperScissors';
 import { Reaction } from './games/Reaction';
 import { DrawAndGuess } from './games/DrawAndGuess';
+import { SpeedQuiz } from './games/SpeedQuiz';
 
 gameManager.registerGame(TicTacToe);
 gameManager.registerGame(RockPaperScissors);
 gameManager.registerGame(Reaction);
 gameManager.registerGame(DrawAndGuess);
+gameManager.registerGame(SpeedQuiz);
 
 const app = express();
 app.use(cors());

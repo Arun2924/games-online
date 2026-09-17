@@ -130,6 +130,7 @@ exports.DrawAndGuess = {
         if (state.status !== 'playing' || state.state.phase !== 'playing')
             return state;
         if (action.type === 'guess') {
+            console.log('Server received guess action:', action, 'from player:', playerId);
             if (playerId === state.state.drawerId)
                 return state; // Drawer cannot guess
             if (state.state.correctGuessers.includes(playerId))

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
+import { CheckCircle, Eraser, PencilSimple, Trash, Trophy, Timer, PaperPlaneTilt } from '@phosphor-icons/react';
 
 export const DrawAndGuessView: React.FC<{ room: any, socket: Socket }> = ({ room, socket }) => {
   const gameState = room.gameState;
@@ -11,76 +12,73 @@ export const DrawAndGuessView: React.FC<{ room: any, socket: Socket }> = ({ room
   const [color, setColor] = useState('#000000');
   const [lineWidth, setLineWidth] = useState(5);
   const [guessInput, setGuessInput] = useState('');
-  
   const currentStrokeId = useRef<string | null>(null);
-  const lastPos = useRef<{x: number, y: number} | null>(null);
-
+  const lastPos = useRef<{ x: number, y: number } | null>(null);
   const { state, status, winnerId } = gameState;
   const isDrawer = state.drawerId === playerId;
   const drawerPlayer = players.find(p => p.id === state.drawerId);
-  const [timeLeft, setTimeLeft] = useState(0);
+  const hasGuessed = (state.correctGuessers || []).includes(playerId);
+  const isParticipant = !!gameState.players?.[playerId || ''];
+  const leaderboard = Object.keys(gameState.players || {}).map(id => ({
+    id,
+    nickname: players.find(p => p.id === id)?.nickname || 'Player left',
+    score: gameState.players[id].score ?? 0,
+  })).sort((a, b) => b.score - a.score);
+  const [now, setNow] = useState(Date.now);
+  const timeLeft = state.endTime && status !== 'finished' ? Math.max(0, Math.ceil((state.endTime - now) / 1000)) : 0;
 
-  // Local timer update for smoothness
   useEffect(() => {
-    if (!state.endTime) return;
-    const interval = setInterval(() => {
-       const left = Math.max(0, Math.ceil((state.endTime - Date.now()) / 1000));
-       setTimeLeft(left);
-    }, 200);
+    if (!state.endTime || status === 'finished') return;
+    const interval = setInterval(() => setNow(Date.now()), 200);
     return () => clearInterval(interval);
-  }, [state.endTime]);
+  }, [state.endTime, status]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    
     const history = state.drawHistory || [];
     history.forEach((ev: any) => {
-        if (ev.type === 'draw') {
-             ctx.beginPath();
-             ctx.moveTo(ev.x0, ev.y0);
-             ctx.lineTo(ev.x1, ev.y1);
-             ctx.strokeStyle = ev.color;
-             ctx.lineWidth = ev.size;
-             ctx.stroke();
-             ctx.closePath();
-        }
+      if (ev.type === 'draw') {
+        ctx.beginPath();
+        ctx.moveTo(ev.x0, ev.y0);
+        ctx.lineTo(ev.x1, ev.y1);
+        ctx.strokeStyle = ev.color;
+        ctx.lineWidth = ev.size;
+        ctx.stroke();
+        ctx.closePath();
+      }
     });
   }, [state.drawHistory]);
 
   useEffect(() => {
     const handleCustomEvent = (ev: any) => {
-       if (ev.type === 'draw') {
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return;
-          ctx.beginPath();
-          ctx.moveTo(ev.x0, ev.y0);
-          ctx.lineTo(ev.x1, ev.y1);
-          ctx.strokeStyle = ev.color;
-          ctx.lineWidth = ev.size;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.stroke();
-          ctx.closePath();
-       } else if (ev.type === 'clear') {
-          const canvas = canvasRef.current;
-          if (canvas) {
-             const ctx = canvas.getContext('2d');
-             ctx?.clearRect(0, 0, canvas.width, canvas.height);
-          }
-       }
+      if (ev.type === 'draw') {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.beginPath();
+        ctx.moveTo(ev.x0, ev.y0);
+        ctx.lineTo(ev.x1, ev.y1);
+        ctx.strokeStyle = ev.color;
+        ctx.lineWidth = ev.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.closePath();
+      } else if (ev.type === 'clear') {
+        const canvas = canvasRef.current;
+        if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+      }
     };
     socket.on('game_custom_event', handleCustomEvent);
     return () => {
-       socket.off('game_custom_event', handleCustomEvent);
+      socket.off('game_custom_event', handleCustomEvent);
     };
   }, [socket]);
 
@@ -89,8 +87,8 @@ export const DrawAndGuessView: React.FC<{ room: any, socket: Socket }> = ({ room
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     return {
-       x: (e.clientX - rect.left) * (canvas.width / rect.width),
-       y: (e.clientY - rect.top) * (canvas.height / rect.height)
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height)
     };
   };
 
@@ -99,13 +97,12 @@ export const DrawAndGuessView: React.FC<{ room: any, socket: Socket }> = ({ room
     setIsDrawing(true);
     lastPos.current = getPos(e);
     currentStrokeId.current = Math.random().toString(36).substring(2, 9);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !isDrawer || state.phase !== 'playing' || !lastPos.current) return;
     const newPos = getPos(e);
-    
     const ev = {
       type: 'draw',
       strokeId: currentStrokeId.current,
@@ -116,23 +113,19 @@ export const DrawAndGuessView: React.FC<{ room: any, socket: Socket }> = ({ room
       color,
       size: lineWidth
     };
-
     socket.emit('game_custom_event', ev);
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
+    const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
-       ctx.beginPath();
-       ctx.moveTo(ev.x0, ev.y0);
-       ctx.lineTo(ev.x1, ev.y1);
-       ctx.strokeStyle = color;
-       ctx.lineWidth = lineWidth;
-       ctx.lineCap = 'round';
-       ctx.lineJoin = 'round';
-       ctx.stroke();
-       ctx.closePath();
+      ctx.beginPath();
+      ctx.moveTo(ev.x0, ev.y0);
+      ctx.lineTo(ev.x1, ev.y1);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.closePath();
     }
-    
     lastPos.current = newPos;
   };
 
@@ -140,180 +133,121 @@ export const DrawAndGuessView: React.FC<{ room: any, socket: Socket }> = ({ room
     setIsDrawing(false);
     lastPos.current = null;
     currentStrokeId.current = null;
-    try {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const clearCanvas = () => {
-    if (!isDrawer) return;
+    if (!isDrawer || state.phase !== 'playing') return;
+    const canvas = canvasRef.current;
+    if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
     socket.emit('game_custom_event', { type: 'clear' });
   };
 
   const submitGuess = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('submitGuess called, input:', guessInput, 'isDrawer:', isDrawer, 'phase:', state.phase);
-    if (!guessInput.trim() || isDrawer || state.phase !== 'playing') {
-      console.log('submitGuess early return. Conditions:', !guessInput.trim(), isDrawer, state.phase !== 'playing');
-      return;
-    }
-    console.log('Emitting game_action guess');
+    if (!guessInput.trim() || isDrawer || hasGuessed || !isParticipant || state.phase !== 'playing') return;
     onAction({ type: 'guess', payload: { text: guessInput } });
     setGuessInput('');
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', maxWidth: '800px', margin: '0 auto' }}>
-      
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '12px 20px', borderRadius: '12px' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>
-            {state.phase === 'countdown' ? 'Get Ready!' : 
-             state.phase === 'playing' ? (isDrawer ? 'You are drawing!' : `${drawerPlayer?.nickname || 'Someone'} is drawing!`) :
-             state.phase === 'result' ? 'Round Over!' : 'Game Over!'}
+    <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-5 px-3 py-6 sm:p-8">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0" role="status" aria-atomic="true">
+          <p className="eyebrow mb-2">Draw & guess · Round {state.round} / {state.maxRounds}</p>
+          <h2 className="font-['Outfit'] text-2xl font-semibold tracking-tight break-words sm:text-3xl">
+            {status === 'finished' ? 'The final sketch.' : state.phase === 'countdown' ? 'Get your ideas ready.' : state.phase === 'playing' ? isDrawer ? 'Your turn to draw.' : `${drawerPlayer?.nickname || 'A player'} is drawing.` : 'The reveal.'}
           </h2>
-          <div style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '4px' }}>Round {state.round} of {state.maxRounds}</div>
         </div>
-        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#3b82f6' }}>
-          ⏱ {timeLeft}s
-        </div>
+        {status !== 'finished' && <div role="timer" aria-label={`${timeLeft} seconds remaining`} className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-emerald-300">
+          <Timer aria-hidden="true" size={22} /><span className="text-2xl font-semibold tabular-nums">{timeLeft}s</span>
+        </div>}
+      </header>
+      <div role="status" aria-atomic="true" className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-center">
+        {status === 'finished' ? (
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xl font-semibold text-emerald-300">
+            <Trophy aria-hidden="true" size={26} /><span className="min-w-0 break-words">{winnerId ? `${players.find(p => p.id === winnerId)?.nickname || 'Another player'} wins.` : 'Game complete.'}</span>
+          </div>
+        ) : state.phase === 'playing' ? (
+          <>
+            <p className="eyebrow mb-2">{isDrawer ? 'Your secret word' : `${state.wordLength} letters`}</p>
+            <p aria-label={isDrawer ? undefined : `Hidden word, ${state.wordLength} letters`} className="font-['Outfit'] text-2xl font-semibold tracking-widest break-words text-emerald-300">{isDrawer ? state.word?.toUpperCase() : Array(state.wordLength || 0).fill('_').join(' ')}</p>
+          </>
+        ) : state.phase === 'result' ? (
+          <p className="text-slate-300">The word was <strong className="font-['Outfit'] text-xl break-words text-emerald-300">{state.roundResults?.word?.toUpperCase()}</strong></p>
+        ) : <p className="text-sm text-slate-300">{isDrawer ? 'Draw the word without writing letters.' : 'Watch the canvas. Guess the word before time runs out.'}</p>}
       </div>
-
-      {/* Secret Word Display */}
-      {state.phase === 'playing' && (
-        <div style={{ textAlign: 'center', padding: '10px', backgroundColor: '#e0f2fe', borderRadius: '8px', color: '#0369a1', fontSize: '1.2rem', fontWeight: 'bold', letterSpacing: '2px' }}>
-          {isDrawer ? `Word: ${state.word.toUpperCase()}` : `Word: ${Array(state.wordLength).fill('_').join(' ')}`}
-        </div>
-      )}
-
-      {/* Result Display */}
-      {state.phase === 'result' && state.roundResults && (
-        <div style={{ textAlign: 'center', padding: '20px', backgroundColor: '#dcfce7', borderRadius: '8px', color: '#166534', fontSize: '1.2rem', fontWeight: 'bold' }}>
-          The word was: {state.roundResults.word.toUpperCase()}
-        </div>
-      )}
-
-      {/* Winner Display */}
-      {status === 'finished' && (
-        <div style={{ textAlign: 'center', padding: '20px', backgroundColor: '#fef08a', borderRadius: '8px', color: '#854d0e', fontSize: '1.5rem', fontWeight: 'bold' }}>
-          🏆 Winner: {players.find(p => p.id === winnerId)?.nickname}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '16px', flexDirection: 'row', flexWrap: 'wrap' }}>
-        
-        {/* Main Canvas Area */}
-        <div style={{ flex: '1 1 500px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', backgroundColor: '#ffffff', borderRadius: '12px', border: '2px solid #e2e8f0', overflow: 'hidden', touchAction: 'none' }}>
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section className="min-w-0">
+          <h3 className="sr-only">Drawing canvas</h3>
+          <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-slate-700 bg-white">
             <canvas
               ref={canvasRef}
               width={800}
               height={600}
-              style={{ width: '100%', height: '100%', display: 'block', cursor: isDrawer ? 'crosshair' : 'default' }}
+              aria-label={isDrawer ? 'Draw your word here using a pointer or touch' : `Live drawing by ${drawerPlayer?.nickname || 'a player'}`}
+              className={`block h-full w-full ${isDrawer && state.phase === 'playing' ? 'touch-none cursor-crosshair' : 'cursor-default'}`}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
-            />
-            {state.phase !== 'playing' && (
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                 <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#475569' }}>
-                    {state.phase === 'countdown' ? 'Starting soon...' : 'Waiting...'}
-                 </span>
-              </div>
-            )}
+              onPointerCancel={handlePointerUp}
+              onLostPointerCapture={handlePointerUp}
+            >A shared canvas for drawing and guessing words.</canvas>
+            {state.phase === 'countdown' && <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 p-6 text-center">
+              <p className="font-['Outfit'] text-2xl font-semibold text-slate-100">A new canvas. A new word.</p>
+            </div>}
           </div>
-          
-          {/* Drawing Tools (Drawer Only) */}
           {isDrawer && state.phase === 'playing' && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-              <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ width: '40px', height: '40px', padding: '0', cursor: 'pointer' }} />
-              
-              <button 
-                onClick={() => { setColor('#ffffff'); setLineWidth(20); }} 
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: color === '#ffffff' ? '#e2e8f0' : 'white' }}>
-                🧹 Eraser
-              </button>
-              
-              <button 
-                onClick={() => { setColor('#000000'); setLineWidth(5); }} 
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', cursor: 'pointer', backgroundColor: color === '#000000' && lineWidth === 5 ? '#e2e8f0' : 'white' }}>
-                ✏️ Pen
-              </button>
-
-              <button 
-                onClick={clearCanvas} 
-                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #fca5a5', cursor: 'pointer', backgroundColor: '#fee2e2', color: '#ef4444', marginLeft: 'auto' }}>
-                🗑 Clear
-              </button>
+            <div role="group" aria-label="Drawing tools" className="panel mt-3 flex flex-wrap items-center gap-2 p-3">
+              <label htmlFor="draw-color" className="flex items-center gap-2 text-sm text-slate-300">Ink
+                <input id="draw-color" type="color" value={color} onChange={e => setColor(e.target.value)} className="h-11 w-11 cursor-pointer rounded-lg border border-slate-600 bg-slate-900 p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300" />
+              </label>
+              <button type="button" aria-pressed={color === '#000000' && lineWidth === 5} onClick={() => { setColor('#000000'); setLineWidth(5); }} className={`btn ${color === '#000000' && lineWidth === 5 ? 'btn-primary' : 'btn-secondary'}`}><PencilSimple aria-hidden="true" size={18} />Pen</button>
+              <button type="button" aria-pressed={color === '#ffffff'} onClick={() => { setColor('#ffffff'); setLineWidth(20); }} className={`btn ${color === '#ffffff' ? 'btn-primary' : 'btn-secondary'}`}><Eraser aria-hidden="true" size={18} />Eraser</button>
+              <button type="button" onClick={clearCanvas} className="btn btn-ghost sm:ml-auto"><Trash aria-hidden="true" size={18} />Clear</button>
+              <p className="w-full text-xs text-slate-400">{color === '#ffffff' ? 'Eraser selected' : `Pen selected · ${lineWidth}px · ${color}`}</p>
             </div>
           )}
-        </div>
-
-        {/* Sidebar (Guesses & Leaderboard) */}
-        <div style={{ flex: '1 1 250px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          
-          {/* Leaderboard */}
-          <div style={{ backgroundColor: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.1rem' }}>Scores</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[...players].sort((a, b) => b.score - a.score).map(p => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: p.id === state.drawerId ? '#3b82f6' : '#64748b' }}>
-                       {p.id === state.drawerId ? '🎨' : '🤔'}
-                    </span>
-                    <span style={{ fontWeight: p.id === playerId ? 'bold' : 'normal' }}>
-                      {p.nickname}
-                    </span>
+        </section>
+        <aside className="flex min-w-0 flex-col gap-4">
+          <section className="panel p-4">
+            <h3 className="eyebrow mb-4">Scores</h3>
+            <ol className="space-y-3">
+              {leaderboard.map((p, index) => (
+                <li key={p.id} className="flex min-w-0 items-center gap-3 text-sm">
+                  <span className="text-xs tabular-nums text-slate-400">{index + 1}.</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-slate-200" title={p.nickname}>{p.nickname}{p.id === playerId ? ' (you)' : ''}</p>
+                    {p.id === state.drawerId ? <span className="flex items-center gap-1 text-xs text-emerald-300"><PencilSimple aria-hidden="true" size={12} />Drawing</span> : (state.correctGuessers || []).includes(p.id) && <span className="flex items-center gap-1 text-xs text-emerald-300"><CheckCircle aria-hidden="true" size={12} />Guessed it</span>}
                   </div>
-                  <span style={{ fontWeight: 'bold' }}>{p.score}</span>
-                </div>
+                  <span className="font-semibold tabular-nums text-slate-100">{p.score}<span className="sr-only"> points</span></span>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section className="panel flex min-w-0 flex-1 flex-col p-4">
+            <h3 id="draw-guesses" className="eyebrow mb-4">Guesses</h3>
+            <div role="log" aria-labelledby="draw-guesses" tabIndex={0} className="mb-4 flex max-h-60 min-h-24 flex-1 flex-col gap-2 overflow-y-auto rounded-lg text-sm focus-visible:outline-2 focus-visible:outline-emerald-300">
+              {!(state.guesses || []).length && <p className="text-slate-400">No guesses yet. One good clue can change that.</p>}
+              {(state.guesses || []).map((g: any, i: number) => (
+                <p key={g.id || i} className={`break-words rounded-lg p-2 ${g.isCorrect ? 'bg-emerald-400/10 text-emerald-300' : 'text-slate-300'}`}>
+                  <span className="font-semibold">{players.find(p => p.id === g.playerId)?.nickname || 'Player left'}: </span>
+                  {g.isCorrect ? <span><CheckCircle aria-hidden="true" className="mr-1 inline" size={16} />Guessed the word.</span> : g.text}
+                </p>
               ))}
             </div>
-          </div>
-
-          {/* Guesses */}
-          <div style={{ flex: 1, backgroundColor: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '1.1rem' }}>Guesses</h3>
-            
-            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '200px', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
-              {state.guesses && state.guesses.map((g: any, i: number) => {
-                const guesser = players.find(p => p.id === g.playerId);
-                return (
-                  <div key={i} style={{ fontSize: '0.9rem', backgroundColor: g.isCorrect ? '#dcfce7' : 'transparent', padding: '2px 4px', borderRadius: '4px' }}>
-                    <span style={{ fontWeight: 'bold', color: '#64748b' }}>{guesser?.nickname}: </span>
-                    {g.isCorrect ? <span style={{ color: '#166534', fontWeight: 'bold' }}>Guessed the word! 🎉</span> : <span>{g.text}</span>}
-                  </div>
-                );
-              })}
-            </div>
-
-            {!isDrawer && state.phase === 'playing' ? (
-              <form onSubmit={submitGuess} style={{ display: 'flex', gap: '8px' }}>
-                <input 
-                  type="text" 
-                  value={guessInput}
-                  onChange={e => setGuessInput(e.target.value)}
-                  placeholder={state.correctGuessers.includes(playerId) ? "You got it!" : "Type guess..."}
-                  disabled={state.correctGuessers.includes(playerId)}
-                  style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                />
-                <button type="submit" disabled={state.correctGuessers.includes(playerId)} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                  Send
-                </button>
+            {!isDrawer && isParticipant && state.phase === 'playing' ? (
+              <form onSubmit={submitGuess}>
+                <label htmlFor="draw-guess" className="field-label">Your guess</label>
+                <div className="flex gap-2">
+                  <input id="draw-guess" type="text" value={guessInput} onChange={e => setGuessInput(e.target.value)} placeholder={hasGuessed ? 'You got it.' : 'Type a word'} disabled={hasGuessed} autoComplete="off" className="field min-w-0 flex-1" />
+                  <button type="submit" aria-label="Send guess" disabled={hasGuessed || !guessInput.trim()} className="btn btn-primary"><PaperPlaneTilt aria-hidden="true" size={20} /></button>
+                </div>
               </form>
-            ) : (
-              <div style={{ textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', padding: '8px' }}>
-                 {isDrawer ? 'Your friends are guessing!' : 'Wait for the next round.'}
-              </div>
-            )}
-          </div>
-
-        </div>
+            ) : <p className="text-sm text-slate-400">{status === 'finished' ? 'All rounds complete.' : isDrawer && state.phase === 'playing' ? 'Your friends are guessing.' : !isParticipant ? 'You are watching this game.' : 'Next round starts shortly.'}</p>}
+          </section>
+        </aside>
       </div>
     </div>
   );

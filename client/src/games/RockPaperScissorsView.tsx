@@ -1,138 +1,94 @@
-import { Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
+import { HandFist, HandPalm, Scissors, LockKey, ArrowRight, Trophy } from '@phosphor-icons/react';
 
-const BOT_ID_PREFIX = 'bot_';
+const choices = [
+  { value: 'rock', label: 'Rock', Icon: HandFist },
+  { value: 'paper', label: 'Paper', Icon: HandPalm },
+  { value: 'scissors', label: 'Scissors', Icon: Scissors },
+];
 
 export function RockPaperScissorsView({ room, socket }: { room: any, socket: Socket }) {
   const gameState = room.gameState;
-  const myPlayer = gameState?.players[socket.id || ''];
+  const myPlayer = gameState?.players?.[socket.id || ''];
   const opponentId = Object.keys(gameState?.players || {}).find(id => id !== socket.id);
-  const opponent = opponentId ? gameState?.players[opponentId] : null;
-  const opponentInfo = room.players.find((p: any) => p.id === opponentId);
-  const opponentName = opponentInfo?.nickname || 'Opponent';
-  const opponentIsBot = opponentId?.startsWith(BOT_ID_PREFIX);
+  const opponent = opponentId ? gameState?.players?.[opponentId] : null;
+  const opponentName = room.players.find((p: any) => p.id === opponentId)?.nickname || 'Opponent';
+  const roundResult = gameState?.state?.roundResult;
+  const finished = gameState?.status === 'finished';
+  const canChoose = !!myPlayer && !myPlayer.choice && !roundResult && gameState?.status === 'playing';
 
   const handleChoice = (choice: string) => {
-    if (myPlayer?.choice) return;
-    if (gameState?.status !== 'playing') return;
-
-    socket.emit('game_action', {
-      type: 'play_move',
-      payload: { choice }
-    });
+    if (!canChoose) return;
+    socket.emit('game_action', { type: 'play_move', payload: { choice } });
   };
 
-  const handleNextRound = () => {
-    socket.emit('game_action', { type: 'next_round' });
-  };
-
-  const renderIcon = (choice: string | null) => {
-    if (choice === 'rock') return '✊';
-    if (choice === 'paper') return '✋';
-    if (choice === 'scissors') return '✌️';
-    return '?';
-  };
-
-  const roundResult = gameState?.state?.roundResult;
+  const statusText = finished
+    ? gameState.winnerId === socket.id ? 'You won the match.' : `${opponentName} wins the match.`
+    : roundResult
+      ? roundResult.winner === 'draw' ? 'Great minds. Same move.' : roundResult.winner === socket.id ? 'This round is yours.' : `${opponentName} takes the round.`
+      : myPlayer?.choice ? 'Your move is locked.' : 'Trust your instinct.';
 
   return (
-    <div className="flex-1 flex flex-col p-4 relative h-full">
-      {/* Top Scores */}
-      <div className="flex justify-between items-center mb-8 bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div className="flex flex-col items-start">
-          <span className="text-sm text-slate-400">You</span>
-          <span className="text-3xl font-bold text-emerald-400">{myPlayer?.score || 0}</span>
+    <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-1 flex-col gap-6 px-3 py-6 sm:p-8">
+      <div className="panel grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 p-4 sm:p-5">
+        <div className="min-w-0">
+          <p className="text-sm text-slate-400">You</p>
+          <p className="font-['Outfit'] text-4xl font-semibold tabular-nums text-emerald-300">{myPlayer?.score || 0}</p>
         </div>
-        <div className="text-slate-500 font-bold tracking-widest text-sm">FIRST TO 3</div>
-        <div className="flex flex-col items-end">
-          <span className="text-sm text-slate-400">{opponentName}</span>
-          <span className="text-3xl font-bold text-rose-400">{opponent?.score || 0}</span>
+        <p className="eyebrow text-center">First to 3</p>
+        <div className="min-w-0 text-right">
+          <p className="truncate text-sm text-slate-400" title={opponentName}>{opponentName}</p>
+          <p className="font-['Outfit'] text-4xl font-semibold tabular-nums text-slate-100">{opponent?.score || 0}</p>
         </div>
       </div>
-
-      <div className="flex-1 flex flex-col items-center justify-center">
-        {gameState?.status === 'finished' ? (
-          <div className="text-center z-10">
-            <h2 className="text-5xl font-bold mb-4">
-              {gameState.winnerId === socket.id 
-                ? <span className="text-emerald-400">You Won!</span> 
-                : <span className="text-rose-400">{opponentIsBot ? `${opponentName} Won!` : 'You Lost!'}</span>
-              }
-            </h2>
-            {room.hostId === socket.id && (
-              <button 
-                onClick={() => socket.emit('back_to_lobby')}
-                className="text-lg bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-xl transition-colors font-bold mt-4 border border-slate-700"
-              >
-                Play Again
-              </button>
-            )}
+      <div className="flex flex-1 flex-col items-center justify-center gap-8 py-4 sm:py-8">
+        <div className="w-full text-center" role="status" aria-atomic="true">
+          {finished && <Trophy aria-hidden="true" size={36} className="mx-auto mb-4 text-amber-400" />}
+          <p className="eyebrow mb-3">{finished ? 'Final result' : roundResult ? 'The reveal' : 'Rock / Paper / Scissors'}</p>
+          <h2 className={`font-['Outfit'] text-3xl font-semibold leading-tight tracking-tight break-words sm:text-4xl ${finished ? gameState.winnerId === socket.id ? 'text-emerald-300' : 'text-rose-400' : roundResult ? roundResult.winner === 'draw' ? 'text-amber-400' : roundResult.winner === socket.id ? 'text-emerald-300' : 'text-rose-400' : 'text-slate-100'}`}>
+            {statusText}
+          </h2>
+          <p className="mt-3 text-sm text-slate-400">{roundResult || finished ? 'One move can change everything.' : myPlayer?.choice ? `Waiting for ${opponentName} to choose…` : 'Pick one. Your opponent won’t see it until the reveal.'}</p>
+        </div>
+        {roundResult ? (
+          <div className="grid w-full max-w-md grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-5">
+            {[socket.id || '', opponentId || ''].map((id, index) => {
+              const choice = choices.find(item => item.value === roundResult.choices[id]);
+              const Icon = choice?.Icon || LockKey;
+              return (
+                <div key={index} className={`min-w-0 ${index === 1 ? 'col-start-3 row-start-1' : ''}`}>
+                  <p className="mb-3 truncate text-center text-sm text-slate-400" title={index === 0 ? 'You' : opponentName}>{index === 0 ? 'You' : opponentName}</p>
+                  <div className="flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 p-3 text-emerald-300">
+                    <Icon aria-hidden="true" weight="duotone" className="h-10 w-10 sm:h-16 sm:w-16" />
+                    <span className="text-sm font-medium text-slate-100">{choice?.label || 'Hidden'}</span>
+                  </div>
+                </div>
+              );
+            })}
+            <span className="col-start-2 row-start-1 mt-8 text-xs font-semibold text-slate-400">VS</span>
           </div>
-        ) : (
-          <>
-            {roundResult ? (
-              <div className="flex flex-col items-center text-center">
-                <h3 className="text-2xl font-bold mb-8">
-                  {roundResult.winner === 'draw' ? <span className="text-amber-400">Draw!</span> : (
-                    roundResult.winner === socket.id ? <span className="text-emerald-400">You win the round!</span> : <span className="text-rose-400">{opponentName} wins the round!</span>
-                  )}
-                </h3>
-                
-                <div className="flex items-center gap-12 mb-12">
-                  <div className="flex flex-col items-center">
-                    <span className="text-sm text-slate-400 mb-2">You played</span>
-                    <div className="text-6xl bg-slate-900 border border-slate-700 w-32 h-32 flex items-center justify-center rounded-2xl shadow-xl shadow-slate-900/50">
-                      {renderIcon(roundResult.choices[socket.id || ''])}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-600">VS</div>
-                  <div className="flex flex-col items-center">
-                    <span className="text-sm text-slate-400 mb-2">{opponentName} played</span>
-                    <div className="text-6xl bg-slate-900 border border-slate-700 w-32 h-32 flex items-center justify-center rounded-2xl shadow-xl shadow-slate-900/50">
-                      {renderIcon(opponentId ? roundResult.choices[opponentId] : null)}
-                    </div>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={handleNextRound}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-8 py-3 rounded-xl font-bold transition-all active:scale-95"
-                >
-                  Next Round
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center">
-                <h2 className="text-2xl font-bold mb-10 text-center">
-                  {myPlayer?.choice ? (
-                    <span className="text-emerald-400">
-                      {opponentIsBot ? `${opponentName} is thinking…` : 'Waiting for opponent…'}
-                    </span>
-                  ) : (
-                    <span>Make your choice</span>
-                  )}
-                </h2>
-
-                <div className="flex gap-4">
-                  {['rock', 'paper', 'scissors'].map((choice) => (
-                    <button
-                      key={choice}
-                      onClick={() => handleChoice(choice)}
-                      disabled={!!myPlayer?.choice}
-                      className={`w-24 h-24 md:w-32 md:h-32 rounded-2xl text-5xl md:text-6xl flex items-center justify-center border-2 transition-all transform
-                        ${myPlayer?.choice === choice 
-                          ? 'border-emerald-500 bg-emerald-500/10 scale-110 shadow-lg shadow-emerald-500/20' 
-                          : 'border-slate-800 bg-slate-900 hover:border-slate-600 hover:bg-slate-800 hover:scale-105 active:scale-95'
-                        }
-                        ${myPlayer?.choice && myPlayer.choice !== choice ? 'opacity-30 scale-90 blur-sm' : ''}
-                      `}
-                    >
-                      {renderIcon(choice)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
+        ) : !finished && (
+          <div role="group" aria-label="Choose your move" className="grid w-full max-w-md grid-cols-3 gap-2 sm:gap-3">
+            {choices.map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleChoice(value)}
+                disabled={!canChoose}
+                aria-pressed={myPlayer?.choice === value}
+                className={`flex min-w-0 flex-col items-center justify-center gap-3 rounded-2xl border px-2 py-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 sm:py-8 ${myPlayer?.choice === value ? 'border-emerald-400 bg-emerald-400/10 text-emerald-300' : 'border-slate-700 bg-slate-900 text-slate-300 enabled:hover:border-emerald-400 enabled:hover:bg-slate-800'} ${myPlayer?.choice && myPlayer.choice !== value ? 'opacity-50' : ''}`}
+              >
+                <Icon aria-hidden="true" weight="duotone" className="h-9 w-9 sm:h-14 sm:w-14" />
+                <span className="text-sm font-medium">{label}</span>
+                {myPlayer?.choice === value && <span className="flex items-center gap-1 text-xs"><LockKey aria-hidden="true" size={12} />Locked</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        {roundResult && !finished && (
+          <button type="button" onClick={() => socket.emit('game_action', { type: 'next_round' })} className="btn btn-primary">
+            Next round <ArrowRight aria-hidden="true" size={18} />
+          </button>
         )}
       </div>
     </div>

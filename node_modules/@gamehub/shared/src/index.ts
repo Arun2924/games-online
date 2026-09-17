@@ -82,6 +82,7 @@ export const gamesRegistry: GameDefinition[] = [
   {
     id: 'word-scramble',
     name: 'Word Scramble',
+    isComingSoon: true,
     description: 'Unscramble the letters to find the hidden word. The first to solve it gets the most points!',
     category: 'Puzzle',
     icon: '🔤',
@@ -91,7 +92,7 @@ export const gamesRegistry: GameDefinition[] = [
     estimatedDuration: '5 min'
   },
   {
-    id: 'reaction-rush',
+    id: 'reaction',
     name: 'Reaction Rush',
     description: 'Wait for the signal, then click as fast as you can. Avoid clicking too early!',
     category: 'Reaction / Skill',

@@ -1,234 +1,163 @@
 import { useState, useEffect } from 'react';
-import { Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import type { Room } from '@gamehub/shared';
+import { CheckCircle, LockKey, Timer, Trophy, XCircle } from '@phosphor-icons/react';
 
 export function SpeedQuizView({ room, socket }: { room: Room, socket: Socket }) {
   const state = room.gameState?.state;
   const phase = state?.phase;
   const isHost = room.hostId === socket.id;
+  const isParticipant = !!room.gameState?.players?.[socket.id || ''];
+  const [now, setNow] = useState(Date.now);
+  const timeLeft = (phase === 'playing' || phase === 'countdown') && state?.questionEndTime ? Math.max(0, state.questionEndTime - now) : 0;
+  const leaderboard: { id: string, nickname: string, score: number }[] = (
+    state?.leaderboard?.length ? state.leaderboard : Object.keys(room.gameState?.players || {}).map(id => ({ id, score: 0 }))
+  ).map((entry: { id: string, score: number }) => ({
+    ...entry,
+    nickname: room.players.find(player => player.id === entry.id)?.nickname || 'Player left',
+  }));
 
-  const [timeLeft, setTimeLeft] = useState<number>(0);
-
-  // Timer logic for client-side countdown
   useEffect(() => {
-    if ((phase !== 'playing' && phase !== 'countdown') || !state?.questionEndTime) {
-      setTimeLeft(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, state.questionEndTime - now);
-      setTimeLeft(remaining);
-      
-      if (remaining <= 0) {
-        clearInterval(interval);
-      }
-    }, 100);
-
+    if (!state?.questionEndTime || phase === 'game_over') return;
+    const interval = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(interval);
   }, [phase, state?.questionEndTime]);
 
   const handleAnswer = (index: number) => {
-    if (phase !== 'playing') return;
-    if (state.playerAnswers?.[socket.id]) return; // Already answered
+    if (phase !== 'playing' || !isParticipant) return;
+    if (state.playerAnswers?.[socket.id ?? '']) return;
     socket.emit('game_action', { type: 'submit_answer', payload: { answerIndex: index } });
   };
 
   if (!state || phase === 'waiting') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full text-center">
-          <h2 className="text-3xl font-bold mb-4">Speed Quiz</h2>
-          <p className="text-slate-400 mb-8">Get ready to test your knowledge! Answer fast for more points.</p>
-          
-          <div className="space-y-4">
-            <h3 className="font-semibold text-slate-300">Players ({room.players.length})</h3>
-            <ul className="flex flex-wrap justify-center gap-2">
-              {room.players.map(p => (
-                <li key={p.id} className="bg-slate-800 px-3 py-1 rounded-full text-sm">
-                  {p.nickname}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {isHost && (
-            <p className="mt-8 text-slate-500 animate-pulse">Wait for players to ready up in the lobby to start the game.</p>
-          )}
-        </div>
+      <div className="flex flex-1 items-center justify-center px-3 py-6 sm:p-8">
+        <section className="panel w-full max-w-md p-6 text-center sm:p-8">
+          <p className="eyebrow mb-3">Fast answers. More points.</p>
+          <h2 className="font-['Outfit'] mb-4 text-3xl font-semibold tracking-tight">Speed quiz</h2>
+          <p className="mb-8 text-slate-400">Test your knowledge against the clock.</p>
+          <h3 className="mb-3 text-sm font-medium text-slate-300">Players ({room.players.length})</h3>
+          <ul className="flex flex-wrap justify-center gap-2">
+            {room.players.map(p => <li key={p.id} className="max-w-full break-words rounded-lg bg-slate-800 px-3 py-2 text-sm">{p.nickname}</li>)}
+          </ul>
+          <p className="mt-6 text-sm text-slate-400">{isHost ? 'Players need to ready up in the lobby before you start.' : 'Waiting for the host to start the quiz.'}</p>
+        </section>
       </div>
     );
   }
 
   if (phase === 'game_over') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-lg w-full text-center">
-          <h2 className="text-4xl font-bold text-amber-400 mb-2">Quiz Complete!</h2>
-          <p className="text-slate-400 mb-8">Final Results</p>
-          
-          <div className="space-y-3 mb-8">
-            {state.leaderboard.map((p: any, index: number) => (
-              <div 
-                key={p.id} 
-                className={`flex items-center justify-between p-4 rounded-xl ${
-                  index === 0 ? 'bg-amber-500/20 border border-amber-500/50 text-amber-400' : 'bg-slate-800'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-lg">{index + 1}.</span>
-                  <span className="font-medium">{p.nickname}</span>
-                </div>
-                <span className="font-bold">{p.score} pts</span>
-              </div>
-            ))}
+      <div className="flex flex-1 items-center justify-center px-3 py-6 sm:p-8">
+        <section className="panel w-full max-w-lg p-6 sm:p-8">
+          <div role="status" className="text-center">
+            <Trophy aria-hidden="true" size={40} className="mx-auto mb-4 text-emerald-300" />
+            <p className="eyebrow mb-3">Final results</p>
+            <h2 className="font-['Outfit'] text-3xl font-semibold tracking-tight">Quiz complete.</h2>
           </div>
-
-          {isHost && (
-            <p className="w-full text-slate-500 py-3 text-center">Return to lobby to play again.</p>
-          )}
-        </div>
+          <ol className="mt-8 space-y-3">
+            {leaderboard.map((p, index) => (
+              <li key={p.id} className={`flex min-w-0 items-center justify-between gap-3 rounded-xl border p-4 ${p.id === room.gameState?.winnerId ? 'border-emerald-400/30 bg-emerald-400/10' : 'border-slate-800 bg-slate-900'}`}>
+                <span className="text-sm tabular-nums text-slate-400">{index + 1}.</span>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words font-medium">{p.nickname}{p.id === socket.id ? ' (you)' : ''}</p>
+                  {p.id === room.gameState?.winnerId && <p className="text-xs text-emerald-300">Winner</p>}
+                </div>
+                <span className="shrink-0 font-semibold tabular-nums text-emerald-300">{p.score} pts</span>
+              </li>
+            ))}
+          </ol>
+        </section>
       </div>
     );
   }
 
   if (phase === 'countdown') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-4">
-        <h2 className="text-4xl font-bold mb-4">Get Ready!</h2>
-        <div className="text-6xl font-bold text-amber-500 font-mono">
-          {Math.ceil(timeLeft / 1000)}
-        </div>
+      <div className="flex min-h-72 flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="eyebrow">Speed quiz</p>
+        <h2 className="font-['Outfit'] text-4xl font-semibold tracking-tight">Get ready.</h2>
+        <div role="timer" aria-label={`${Math.ceil(timeLeft / 1000)} seconds until start`} className="font-['Outfit'] text-7xl font-semibold tabular-nums text-emerald-300">{Math.ceil(timeLeft / 1000)}</div>
+        <p className="text-sm text-slate-400">Choose one answer. The faster, the better.</p>
       </div>
     );
   }
 
   const currentQuestion = state.currentQuestion;
-  const myAnswer = state.playerAnswers?.[socket.id];
+  const myAnswer = state.playerAnswers?.[socket.id ?? ''];
   const hasAnswered = !!myAnswer;
-  
-  // Calculate progress bar percentage
-  const totalTime = 15000;
-  const progressPercent = Math.max(0, Math.min(100, (timeLeft / totalTime) * 100));
+  const progressPercent = Math.max(0, Math.min(100, (timeLeft / 15000) * 100));
+  const feedback = !isParticipant ? 'You are watching this quiz.' : phase === 'round_result'
+    ? !hasAnswered ? 'No answer submitted. 0 points this round.' : myAnswer.isCorrect ? `Correct. +${myAnswer.pointsEarned} points.` : 'Incorrect. 0 points this round.'
+    : hasAnswered ? 'Answer locked. Waiting for the reveal.' : 'Choose one answer below.';
 
   return (
-    <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full p-4 gap-6">
-      <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-xl">
+    <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-1 flex-col gap-5 px-3 py-6 sm:p-8">
+      <header className="panel flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5">
         <div>
-          <span className="text-slate-400 text-sm">Round</span>
-          <p className="font-bold text-xl">{state.currentRound} / {state.totalRounds}</p>
+          <p className="eyebrow mb-1">Speed quiz</p>
+          <h2 className="font-['Outfit'] text-xl font-semibold">Round {state.currentRound} / {state.totalRounds}</h2>
         </div>
-        
-        {phase === 'playing' && (
-          <div className="flex flex-col items-end w-32">
-            <span className={`text-2xl font-bold font-mono ${timeLeft < 5000 ? 'text-rose-500' : 'text-emerald-400'}`}>
-              {(timeLeft / 1000).toFixed(1)}s
-            </span>
-            <div className="w-full h-1.5 bg-slate-800 rounded-full mt-1 overflow-hidden">
-              <div 
-                className={`h-full ${timeLeft < 5000 ? 'bg-rose-500' : 'bg-emerald-400'} transition-all ease-linear`}
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
+        {phase === 'playing' ? (
+          <div className="w-32">
+            <div role="timer" aria-label={`${Math.ceil(timeLeft / 1000)} seconds remaining`} className={`flex items-center justify-end gap-2 text-2xl font-semibold tabular-nums ${timeLeft < 5000 ? 'text-amber-300' : 'text-emerald-300'}`}><Timer aria-hidden="true" size={22} />{(timeLeft / 1000).toFixed(1)}s</div>
+            <div aria-hidden="true" className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full origin-left bg-emerald-400" style={{ transform: `scaleX(${progressPercent / 100})` }} /></div>
           </div>
-        )}
-        
-        {phase === 'round_result' && (
-          <div className="text-amber-400 font-bold text-xl">Round Over!</div>
-        )}
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex-1 flex flex-col gap-6">
-          {currentQuestion && (
-            <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl flex-1 flex flex-col">
-              <span className="text-emerald-500 text-sm font-bold uppercase tracking-wider mb-2">
-                {currentQuestion.category}
-              </span>
-              <h3 className="text-2xl sm:text-3xl font-bold mb-8 leading-relaxed">
-                {currentQuestion.question}
-              </h3>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-auto">
-                {currentQuestion.choices.map((choice: string, index: number) => {
-                  const isSelected = myAnswer?.answerIndex === index;
-                  
-                  let buttonStyle = 'bg-slate-800 hover:bg-slate-700 text-slate-300';
-                  
-                  if (phase === 'playing' && isSelected) {
-                    buttonStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-400 border-2';
-                  } else if (phase === 'playing' && hasAnswered) {
-                    buttonStyle = 'bg-slate-800/50 text-slate-500 cursor-not-allowed opacity-50';
-                  } else if (phase === 'playing') {
-                    buttonStyle = 'bg-slate-800 hover:bg-slate-700 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer border-2 border-transparent';
-                  }
-
-                  if (phase === 'round_result') {
-                    const isCorrectChoice = currentQuestion.correctIndex === index;
-                    if (isCorrectChoice) {
-                      buttonStyle = 'bg-emerald-500 text-slate-950 font-bold border-2 border-emerald-500';
-                    } else if (isSelected && !isCorrectChoice) {
-                      buttonStyle = 'bg-rose-500 text-white font-bold border-2 border-rose-500';
-                    } else {
-                      buttonStyle = 'bg-slate-800/50 text-slate-500 opacity-50';
-                    }
-                  }
-
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => handleAnswer(index)}
-                      disabled={hasAnswered || phase !== 'playing'}
-                      className={`p-4 rounded-xl text-left font-medium text-lg min-h-[80px] ${buttonStyle}`}
-                    >
-                      {choice}
-                    </button>
-                  );
-                })}
-              </div>
+        ) : <p className="text-sm font-medium text-emerald-300">Round complete</p>}
+      </header>
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <section className="panel min-w-0 p-4 sm:p-6">
+          {currentQuestion && <>
+            <p className="eyebrow mb-3 text-emerald-300">{currentQuestion.category}</p>
+            <h3 className="font-['Outfit'] mb-6 text-2xl font-semibold leading-snug tracking-tight break-words sm:text-3xl">{currentQuestion.question}</h3>
+            <p role="status" aria-atomic="true" className="mb-5 flex items-center gap-2 text-sm text-slate-300">
+              {phase === 'round_result' && hasAnswered ? myAnswer.isCorrect ? <CheckCircle aria-hidden="true" size={20} className="shrink-0 text-emerald-300" /> : <XCircle aria-hidden="true" size={20} className="shrink-0 text-rose-300" /> : hasAnswered && <LockKey aria-hidden="true" size={18} className="shrink-0" />}
+              {feedback}
+            </p>
+            <div role="group" aria-label="Answer choices" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {currentQuestion.choices.map((choice: string, index: number) => {
+                const isSelected = myAnswer?.answerIndex === index;
+                const isCorrectChoice = phase === 'round_result' && currentQuestion.correctIndex === index;
+                const isWrongSelection = phase === 'round_result' && isSelected && !isCorrectChoice;
+                const buttonStyle = isCorrectChoice ? 'border-emerald-400 bg-emerald-400/15 text-emerald-200'
+                  : isWrongSelection ? 'border-rose-400 bg-rose-400/10 text-rose-200'
+                  : isSelected ? 'border-emerald-300 bg-emerald-400/10 text-emerald-200'
+                  : 'border-slate-600 bg-slate-900 text-slate-200 enabled:hover:border-emerald-300 enabled:hover:bg-slate-800';
+                return (
+                  <button key={index} type="button" onClick={() => handleAnswer(index)} disabled={hasAnswered || phase !== 'playing' || !isParticipant} aria-pressed={isSelected} className={`flex min-h-28 min-w-0 flex-col items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 motion-reduce:transition-none ${buttonStyle}`}>
+                    <span className="text-xs font-semibold">{String.fromCharCode(65 + index)}</span>
+                    <span className="break-words font-medium">{choice}</span>
+                    {(isCorrectChoice || isSelected) && <span className="mt-auto flex items-center gap-1.5 text-xs font-medium">
+                      {isCorrectChoice ? <CheckCircle aria-hidden="true" size={16} /> : isWrongSelection ? <XCircle aria-hidden="true" size={16} /> : <LockKey aria-hidden="true" size={16} />}
+                      {isCorrectChoice ? isSelected ? 'Correct · your answer' : 'Correct answer' : isWrongSelection ? 'Your answer · incorrect' : 'Your answer · locked'}
+                    </span>}
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
-
-        <div className="lg:w-80 flex flex-col gap-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <h3 className="font-bold text-slate-300 mb-4 uppercase text-sm tracking-wider">Leaderboard</h3>
-            <div className="space-y-3">
-              {state.leaderboard.length > 0 
-                ? state.leaderboard.map((p: any, idx: number) => {
-                  const pAnswer = state.playerAnswers?.[p.id];
-                  
-                  return (
-                    <div key={p.id} className="flex items-center justify-between p-2 rounded bg-slate-800/50">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500 text-xs w-4">{idx + 1}.</span>
-                        <span className="font-medium truncate max-w-[100px]">{p.nickname}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {phase === 'playing' && pAnswer && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" title="Answered" />
-                        )}
-                        {phase === 'round_result' && pAnswer && (
-                          <span className={`text-xs font-bold ${pAnswer.isCorrect ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {pAnswer.isCorrect ? `+${pAnswer.pointsEarned}` : '0'}
-                          </span>
-                        )}
-                        <span className="font-bold text-sm w-10 text-right">{p.score}</span>
-                      </div>
-                    </div>
-                  );
-                })
-                : room.players.map((p: any) => (
-                  <div key={p.id} className="flex items-center justify-between p-2 rounded bg-slate-800/50">
-                    <span className="font-medium truncate">{p.nickname}</span>
-                    <span className="font-bold text-sm">0</span>
+          </>}
+        </section>
+        <aside className="panel self-start p-4">
+          <h3 className="eyebrow mb-2">Leaderboard</h3>
+          <p className="mb-4 text-xs text-slate-400">Scores update after each round.</p>
+          <ol className="space-y-3">
+            {leaderboard.map((p, index) => {
+              const answer = state.playerAnswers?.[p.id];
+              return (
+                <li key={p.id} className="flex min-w-0 items-center gap-3 border-b border-slate-800 pb-3 last:border-0 last:pb-0">
+                  <span className="text-xs tabular-nums text-slate-400">{index + 1}.</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-200" title={p.nickname}>{p.nickname}{p.id === socket.id ? ' (you)' : ''}</p>
+                    <p className={`mt-1 text-xs ${phase === 'round_result' && answer?.isCorrect ? 'text-emerald-300' : 'text-slate-400'}`}>
+                      {phase === 'playing' ? answer ? 'Answered' : 'Thinking' : answer ? answer.isCorrect ? `Correct · +${answer.pointsEarned}` : 'Incorrect · +0' : 'No answer · +0'}
+                    </p>
                   </div>
-                ))
-              }
-            </div>
-          </div>
-        </div>
+                  <span className="font-semibold tabular-nums">{p.score}<span className="sr-only"> points</span></span>
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
       </div>
     </div>
   );

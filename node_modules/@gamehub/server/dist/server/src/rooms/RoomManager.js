@@ -289,17 +289,24 @@ class RoomManager {
             this.scheduleBotMove(room);
         });
         socket.on('game_action', (action) => {
+            console.log('RoomManager received game_action:', action);
             const roomId = this.socketToRoom.get(socket.id);
-            if (!roomId)
+            if (!roomId) {
+                console.log('No roomId for socket:', socket.id);
                 return;
+            }
             const room = this.rooms.get(roomId);
-            if (!room || room.status !== 'playing' || !room.gameId || !room.gameState)
+            if (!room || room.status !== 'playing' || !room.gameId || !room.gameState) {
+                console.log('Room invalid for game_action:', { roomStatus: room?.status, gameId: room?.gameId, hasGameState: !!room?.gameState });
                 return;
+            }
             const gameDef = this.gameManager.getGame(room.gameId);
             if (gameDef) {
                 // Prevent spectators/mid-game joiners from sending actions
-                if (!room.gameState.players[socket.id])
+                if (!room.gameState.players[socket.id]) {
+                    console.log('Player not in game state players map:', socket.id);
                     return;
+                }
                 const newState = gameDef.handleAction(room.gameState, action, socket.id);
                 room.gameState = newState;
                 this.broadcastRoomState(room);
