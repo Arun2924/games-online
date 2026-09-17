@@ -2,6 +2,7 @@ import { TicTacToeView } from './TicTacToeView';
 import { RockPaperScissorsView } from './RockPaperScissorsView';
 import { ReactionView } from './ReactionView';
 import { DrawAndGuessView } from './DrawAndGuessView';
+import { SpeedQuizView } from './SpeedQuizView';
 import type { PlayerAction } from '@gamehub/shared';
 
 export interface GameProps {
@@ -16,5 +17,6 @@ export const ClientGameRegistry: Record<string, React.ComponentType<any>> = {
   tictactoe: TicTacToeView,
   rps: RockPaperScissorsView,
   reaction: ReactionView,
-  'draw-guess': DrawAndGuessView
+  'draw-guess': DrawAndGuessView,
+  'speed-quiz': SpeedQuizView
 };

@@ -69,28 +69,40 @@ export const gamesRegistry: GameDefinition[] = [
     estimatedDuration: '1–3 min'
   },
   {
-    id: 'reaction',
-    name: 'Reaction Challenge',
-    description: 'Who has the fastest reflexes? Play solo to beat your own time, or compete with up to 6 friends.',
+    id: 'speed-quiz',
+    name: 'Speed Quiz',
+    description: 'A fast-paced multiplayer trivia game. Answer quickly to earn more points!',
+    category: 'Quiz',
+    icon: '🧠',
+    minPlayers: 1,
+    maxPlayers: 6,
+    supportedModes: ['Solo', 'Online'],
+    estimatedDuration: '5 min'
+  },
+  {
+    id: 'word-scramble',
+    name: 'Word Scramble',
+    description: 'Unscramble the letters to find the hidden word. The first to solve it gets the most points!',
+    category: 'Puzzle',
+    icon: '🔤',
+    minPlayers: 1,
+    maxPlayers: 6,
+    supportedModes: ['Solo', 'Online'],
+    estimatedDuration: '5 min'
+  },
+  {
+    id: 'reaction-rush',
+    name: 'Reaction Rush',
+    description: 'Wait for the signal, then click as fast as you can. Avoid clicking too early!',
     category: 'Reaction / Skill',
     icon: '⚡',
     minPlayers: 1,
     maxPlayers: 6,
     supportedModes: ['Solo', 'Online'],
-    estimatedDuration: '1 min'
+    estimatedDuration: '1–2 min'
   },
   // --- COMING SOON (PLACEHOLDERS) ---
-  {
-    id: 'trivia-quiz',
-    name: 'Brain Battle Quiz',
-    category: 'Quiz',
-    icon: '🧠',
-    minPlayers: 2,
-    maxPlayers: 6,
-    supportedModes: ['Online'],
-    estimatedDuration: '5–10 min',
-    isComingSoon: true
-  },
+
   {
     id: 'poker-lite',
     name: 'Poker Lite',
