@@ -1,6 +1,5 @@
-import { GameState, PlayerAction } from '../../../shared/src/index';
+import { GameState, PlayerAction, Room } from '@gamehub/shared';
 import { Server, Socket } from 'socket.io';
-import { Room } from '../../../shared/src/index';
 
 export interface ServerGameDefinition {
   id: string;

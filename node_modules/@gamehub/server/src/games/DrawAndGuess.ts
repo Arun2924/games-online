@@ -1,5 +1,5 @@
 import { ServerGameDefinition } from './GameManager';
-import { GameState, PlayerAction } from '../../../shared/src/index';
+import { GameState, PlayerAction } from '@gamehub/shared';
 import { getRandomWord } from './drawAndGuess/words';
 
 export const DrawAndGuess: ServerGameDefinition = {

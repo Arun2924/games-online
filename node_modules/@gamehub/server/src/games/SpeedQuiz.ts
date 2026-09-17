@@ -1,5 +1,5 @@
 import { ServerGameDefinition } from './GameManager';
-import { GameState, PlayerAction } from '../../../shared/src/index';
+import { GameState, PlayerAction } from '@gamehub/shared';
 import { getRandomQuestions } from './speedQuiz/questions';
 
 const QUESTION_TIME_LIMIT_MS = 15000;

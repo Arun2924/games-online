@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io';
-import { Player, Room, PlayerAction } from '../../../shared/src/index';
+import { Player, Room, PlayerAction } from '@gamehub/shared';
 import { GameManager } from '../games/GameManager';
 
 const BOT_ID_PREFIX = 'bot_';

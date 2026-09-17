@@ -1,5 +1,5 @@
 import { ServerGameDefinition } from './GameManager';
-import { GameState, PlayerAction } from '../../../shared/src/index';
+import { GameState, PlayerAction } from '@gamehub/shared';
 
 export const Reaction: ServerGameDefinition = {
   id: 'reaction',
